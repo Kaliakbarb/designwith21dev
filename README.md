@@ -26,18 +26,21 @@ Claude will:
 
 ## Installation
 
-Copy the skill into your Claude Code skills directory:
+**One-liner** — clone and symlink so updates pull automatically:
 
 ```bash
-cp -r skills/21st-dev ~/.claude/skills/21st-dev
+git clone https://github.com/Kaliakbarb/designwith21dev.git ~/designwith21dev
+ln -s ~/designwith21dev/skills/21st-dev ~/.claude/skills/21st-dev
 ```
 
-Or clone this repo and symlink it:
+**Or copy** if you prefer a standalone install:
 
 ```bash
 git clone https://github.com/Kaliakbarb/designwith21dev.git
-ln -s "$(pwd)/designwith21dev/skills/21st-dev" ~/.claude/skills/21st-dev
+cp -r designwith21dev/skills/21st-dev ~/.claude/skills/21st-dev
 ```
+
+Restart Claude Code after installing. The skill appears immediately as `/21st-dev`.
 
 ---
 
