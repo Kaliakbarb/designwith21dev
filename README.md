@@ -4,18 +4,29 @@ A Claude Code skill that connects Claude to [21st.dev](https://21st.dev/home) �
 
 ---
 
-## What's new in v2
+## What's new in v2.1
 
-The previous version stopped at "write file + list deps". v2 actually finishes the job:
+v2.1 corrects the architecture: **community grid + shadcn registry first, MCP as fallback.**
 
-- **MCP-first** — uses the official `@21st-dev/magic` MCP server when installed (far more reliable than scraping). Falls back to `WebFetch` only if MCP isn't available.
-- **Theme-aligned** — reads your `tailwind.config.{ts,js}` and `globals.css`, then rewrites hardcoded colors / fonts / radii in the fetched component to use your project's design tokens (`bg-primary`, `text-foreground`, `rounded-[var(--radius)]`, etc.).
-- **Wired into the page** — not just `components/<Name>.tsx` — also edits `app/page.tsx` (or your detected home page) to import and render the component.
-- **Auto-installs deps** — runs `npm install` for peer deps and `npx shadcn@latest add` for missing primitives. No manual copy-paste.
-- **Verified in a real browser** — starts the dev server, navigates with Playwright MCP, takes a screenshot, scans console for errors. If anything's broken, surfaces it.
-- **Logged to DESIGN.md** — appends a short entry per install (date, component, source URL, deps, theme tweaks) so the project keeps a running design history.
-- **Refine flow** — `21st_magic_component_refiner` redesigns existing components in place.
-- **Logo flow** — `logo_search` fetches brand SVGs as TSX/JSX/SVG via SVGL.
+The previous version did vector-similarity searches via Magic MCP — useful, but worse than the community-voted grids 21st.dev publishes at `/community/components/s/<slug>`. The grids surface components ranked by **real user votes** (e.g. Banner by nur/ui · 141 votes), and every component on the site is a shadcn registry item installable in one command:
+
+```bash
+npx shadcn@latest add https://21st.dev/r/<creator>/<component>
+```
+
+That single command handles files, peer deps, missing primitives, and tailwind config. No scraping. No Magic MCP API key required for the common path.
+
+### Full v2.1 feature set
+
+- **Community-grid first** — fetches `/community/components/s/<slug>` for the user's category, presents the top 3 by votes
+- **Registry-install primary** — uses `npx shadcn add <21st.dev/r/...>` as the canonical install path
+- **Magic MCP fallback** — kept for off-grid requests ("an unusual hybrid of X and Y") and for the **Refine** + **Logo** flows
+- **Theme-aligned** — fixes common post-install issues: components referencing `--brand` vars you don't have, custom Tailwind classes like `animate-appear`, or `Button asChild` patterns that break on `@base-ui/react`-style buttons
+- **Wired into the page** — edits `app/page.tsx` (or your detected home page) to import and render the component, replaces boilerplate so the new section is visible
+- **Verified in a real browser** — Playwright MCP screenshot + console scan
+- **Logged to DESIGN.md** — date, component, source URL, deps, theme tweaks
+- **Refine flow** — `21st_magic_component_refiner` redesigns existing components in place
+- **Logo flow** — `logo_search` (or SVGL fallback) fetches brand SVGs as TSX/JSX/SVG
 
 ---
 
@@ -83,17 +94,26 @@ It also triggers naturally mid-conversation on phrases like *"add a component"*,
 
 ---
 
-## The 7-phase Add workflow
+## The 7-phase Add workflow (v2.1)
 
 | Phase | What happens |
 |---|---|
-| 1. Detect & clarify | `claude mcp list`, read `package.json`, detect target page; ask one question if vague |
-| 2. Search | MCP: `21st_magic_component_inspiration`. Fallback: `WebFetch` 21st.dev search |
-| 3. Present | Show 2–3 options (name, creator, deps, preview URL) |
-| 4. Generate | MCP: `21st_magic_component_builder` (opens 21st.dev canvas → returns code). Fallback: scrape |
-| 5. Theme-align | Rewrite hardcoded colors/fonts/radii to use the project's CSS vars and Tailwind tokens |
-| 6. Wire-in | Write component file, `npm install` deps, `npx shadcn add` missing primitives, edit the target page |
+| 1. Detect & clarify | Read `package.json`, find target page, check for `components.json` (shadcn → registry-install available); resolve which category slug the request maps to |
+| 2. Browse community grid | `WebFetch https://21st.dev/community/components/s/<slug>` — parse cards (name, creator, vote count, registry URL) |
+| 3. Present top picks | Top 3 by votes, plus a stylistic outlier if the user mentioned style intent |
+| 4. Install via shadcn registry | `npx shadcn@latest add https://21st.dev/r/<creator>/<component>` — handles files, deps, primitives, and tailwind config in one command |
+| 5. Theme-align | Fix post-install issues: missing `--brand` vars, custom `animate-appear` classes, `asChild` mismatch on base-ui buttons, hardcoded colors |
+| 6. Wire-in | Move/rename if needed, edit target page to import and render, replace boilerplate so the new section is visible |
 | 7. Verify | `npm run dev` (background), Playwright `browser_navigate` + `browser_take_screenshot` + `browser_console_messages`. Append `DESIGN.md` entry on success |
+
+### When does the skill use Magic MCP?
+
+Only when:
+- The user's intent doesn't map to a category slug ("an unusual hybrid of a hero and a chat thread"), OR
+- `npx shadcn add` fails (registry 404, project not shadcn-compatible), OR
+- The user explicitly wants a generated/customized component, not a community pick
+
+Magic MCP is also the engine for the **Refine** flow (`21st_magic_component_refiner`) and the **Logo** flow (`logo_search`).
 
 ---
 

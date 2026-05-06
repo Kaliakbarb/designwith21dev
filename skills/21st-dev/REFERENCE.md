@@ -1,5 +1,82 @@
 # 21st-dev Reference
 
+## Community grid — the default install path
+
+21st.dev publishes a per-category grid at:
+
+```
+https://21st.dev/community/components/s/<slug>
+```
+
+Each card on a category page is a community-voted component with a stable shadcn registry URL of:
+
+```
+https://21st.dev/r/<creator>/<component>
+```
+
+That registry URL is the canonical install target — pass it to `npx shadcn@latest add` and shadcn handles files, peer deps, primitives, and tailwind config automatically.
+
+### Category slugs
+
+Common slugs (singular form, sometimes hyphenated):
+
+| User says | Slug |
+|---|---|
+| hero | `hero` |
+| pricing | `pricing` |
+| announcement, banner | `announcement` |
+| testimonial | `testimonial` |
+| navbar, navigation | `navbar` |
+| footer | `footer` |
+| feature, features | `feature` |
+| cta, call-to-action | `call-to-action` |
+| login, signup, signin | `sign-in` |
+| dashboard | `dashboard` |
+| chat, ai chat | `ai-chat` |
+| card | `card` |
+| button | `button` |
+| form | `form` |
+| modal, dialog | `dialog` |
+| table | `table` |
+| accordion | `accordion` |
+| dropdown | `dropdown` |
+| tooltip | `tooltip` |
+| sidebar | `sidebar` |
+| empty state | `empty-state` |
+| logo | `logo` |
+| spinner, loader | `spinner` |
+
+If a slug 404s, drop to the category-index page (`https://21st.dev/community/components`) and let WebFetch grep for the closest match.
+
+### Parsing the grid (what to extract per card)
+
+From the rendered HTML/accessibility tree of a category page, each component card surfaces:
+
+- `name` — the component title
+- `creator` — the @handle (and creator profile URL `/community/<creator>`)
+- `votes` — integer next to the heart/star icon
+- `previewUrl` — image src
+- `detailUrl` — `/community/components/<creator>/<component>/<variant>`
+- `registryUrl` — derive from detailUrl: `https://21st.dev/r/<creator>/<component>`
+
+Sort by `votes` descending. Present the top 3 to the user.
+
+### Install command
+
+```bash
+npx shadcn@latest add https://21st.dev/r/<creator>/<component>
+```
+
+That's it. shadcn handles:
+- Writing the component file (path per `components.json`)
+- Installing npm peer deps
+- Installing missing shadcn primitives
+- Extending `tailwind.config` if needed
+
+If the registry URL 404s or the user is on a non-shadcn project, fall back to MCP.
+
+---
+
 ## Magic MCP — install
 
 ```bash
@@ -68,6 +145,38 @@ context: string                      # specific aspects to improve (or "" if unc
 queries: string[]                # lowercase company names, e.g. ["github", "discord"]
 format: "JSX" | "TSX" | "SVG"
 ```
+
+---
+
+## Stack quirks (read this before theme-align)
+
+Things that have actually broken installs in the wild:
+
+### Component references CSS vars the project doesn't have
+Common offenders: `--brand`, `--brand-foreground`, `--gradient-stop-1`. shadcn projects only define `--primary` / `--primary-foreground` etc. **Fix:** delete the references or remap to the closest existing token. Never invent a var by adding it to `globals.css` — that's scope creep, and you'll get the foreground/background contrast wrong.
+
+### Component uses a Tailwind class not in the project's config
+Common offenders from Launch UI / Tailark components: `animate-appear`, `animate-appear-zoom`, `animate-shimmer`. **Fix:** inline the keyframes via `<style>{...}</style>` inside the component rather than editing `tailwind.config`. Local fix, no project-wide ripple.
+
+### shadcn `base-nova` style uses `@base-ui/react`, NOT Radix
+The default shadcn install (style: `base-nova`) ships a `Button` based on `@base-ui/react/button` — which has **no `asChild` prop**. Components fetched from 21st.dev frequently use the Radix Slot pattern (`<Button asChild><a>...</a></Button>`). **Fix:** swap to a styled anchor:
+
+```tsx
+import { buttonVariants } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+
+<a href={href} className={cn(buttonVariants({ size: "lg" }))}>
+  {label}
+</a>
+```
+
+Detect: grep the project's `components/ui/button.tsx` for `@base-ui/react` — if present, use the anchor pattern.
+
+### Component imports an image asset that doesn't exist
+Common in hero/mockup components — they hardcode a `mockup.png` from someone else's CDN, or reference `/dashboard.png` that lives only in the demo project. **Fix:** drop the `<img>` block entirely or replace with a placeholder. Don't ship references to external CDN images you didn't validate.
+
+### Dev server port already bound
+If `npm run dev` exits or another instance is on `:3000`, reuse the existing one. Don't spawn a second server. Find the port: `lsof -ti:3000` or grep the dev-server log for `Local:`.
 
 ---
 

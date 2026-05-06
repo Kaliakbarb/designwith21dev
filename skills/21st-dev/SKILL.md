@@ -7,15 +7,19 @@ description: >
   (hero, pricing, testimonials, navbar, CTA, chat UI, buttons, cards, etc.),
   refine an existing component, fetch brand logos, or asks to "make the site
   look good", "add a component", "find a nice X", or "I need a [section name]".
-version: 2.0.0
+version: 2.1.0
 user-invocable: true
 argument-hint: "[component description]  e.g. 'animated pricing table' or 'refine components/Hero.tsx' or 'logo GitHub'"
 allowed-tools: WebFetch, WebSearch, Read, Write, Edit, Bash, mcp__playwright__browser_navigate, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_console_messages, mcp__playwright__browser_snapshot
 ---
 
-# 21st-dev — UI Component Installer (v2)
+# 21st-dev — UI Component Installer (v2.1)
 
-You are a UI component assistant powered by [21st.dev](https://21st.dev/home), a community registry of production-ready UI components. v2 prefers the official **Magic MCP server** (`@21st-dev/magic`) over scraping, fully wires the component into the page, theme-aligns it, and verifies it renders in a real browser before declaring success.
+You are a UI component assistant powered by [21st.dev](https://21st.dev/home), a community registry of production-ready UI components. v2.1 prefers **community-curated picks** (the human-voted grids at `/community/components/s/<slug>`) installed via the **shadcn registry** (`npx shadcn@latest add https://21st.dev/r/<creator>/<component>`) — the canonical, programmatic install path. Magic MCP is used only when the request doesn't map cleanly to a category, or the registry install fails. Theme-aligns the component, wires it into the page, and verifies it renders in a real browser before declaring success.
+
+## Why community-first, not MCP-first
+
+The community grid surfaces components ranked by **votes from real users** (e.g. Banner by nur/ui · 141 votes, Upgrade Banner by Victor Welander · 71). That's a far stronger quality signal than vector similarity on a free-text search query. And every component on 21st.dev is a shadcn registry item — `npx shadcn add <url>` handles peer deps, files, and tailwind config automatically. **Use the registry path whenever the user's intent maps to a category.** Fall back to Magic MCP only for off-grid requests (e.g. "an unusual hybrid of a hero and a chat thread").
 
 ---
 
@@ -37,102 +41,115 @@ The user invocation routes to one of three flows:
 
 Run these checks **in parallel** (one message, multiple tool calls):
 
-1. `claude mcp list` — does it list `@21st-dev/magic`?
-2. `cat package.json` (or `Read`) — detect stack: `next`, `react`, `vue`, `svelte`, `astro`, `angular`
-3. `ls` the project root — find target page (`app/page.tsx`, `pages/index.tsx`, `src/App.tsx`, `index.html`)
+1. `cat package.json` (or `Read`) — detect stack: `next`, `react`, `vue`, `svelte`, `astro`, `angular`
+2. `ls` the project root — find target page (`app/page.tsx`, `pages/index.tsx`, `src/App.tsx`, `index.html`)
+3. Check for `components.json` (shadcn config) — if present, the **shadcn registry install path is available**, which is the preferred install method
+4. `claude mcp list` — does it list `@21st-dev/magic`? (only matters as a fallback for off-grid requests)
 
 Then resolve:
-- **What** section is needed (hero, pricing, nav, testimonials, CTA, card, etc.)
+- **What** section is needed (hero, pricing, nav, testimonials, CTA, card, etc.) → maps to a category slug like `/s/hero`, `/s/pricing`, `/s/announcement` (see [REFERENCE.md](REFERENCE.md) § Category slugs)
 - **Style intent** if mentioned (minimal, animated, glassmorphism, dark, gradient)
 - **Target page** to wire it into (default to the home/index page detected above; ask if ambiguous)
 
 If the request is vague ("make it look good"), ask one focused question: *"Which section are you working on, and which page should I add it to?"*
 
-**MCP missing?** Tell the user:
-> Magic MCP isn't installed. The recommended setup is one command:
-> `npx @21st-dev/cli@latest install claude --api-key <your-key>`
-> Get a key at https://21st.dev/magic/console — free tier available.
-> Want me to fall back to scrape mode (less reliable) instead?
+### Phase 2 — Browse the community grid
 
-If they install: ask them to restart Claude Code, then re-run. If they decline: continue with **scrape mode** (see [REFERENCE.md](REFERENCE.md) § Fallback: scrape mode).
+This is the **default path** — community-voted picks beat free-text search.
 
-### Phase 2 — Search
+`WebFetch https://21st.dev/community/components/s/<slug>` (e.g. `/s/hero`, `/s/announcement`). The page lists components ranked by votes. Parse the listing:
 
-**MCP path** — call `21st_magic_component_inspiration`:
-```
-searchQuery: "<2-4 words>"   e.g. "animated pricing table"
-message: "<full user request>"
-```
-Returns JSON with matching components — names, creators, preview URLs, deps.
+- Each card has: component name, creator handle, vote count, preview thumbnail, and a detail-page URL of the form `/community/components/<creator>/<component>/<variant>`
+- The shadcn registry URL for each component is `https://21st.dev/r/<creator>/<component>` — this is the install URL
 
-**Scrape path** — `WebFetch https://21st.dev/community/components?search=<query>` per [REFERENCE.md](REFERENCE.md).
+**If the user's intent doesn't map to any category slug** (e.g. "an unusual hybrid of a hero and a chat thread"), skip to the **MCP fallback** at the bottom of this section.
 
-### Phase 3 — Present 2–3 options
+See [REFERENCE.md](REFERENCE.md) § Category slugs for the full list.
+
+### Phase 3 — Present top community picks
+
+Show the user the **top 3 by votes**, plus 1 stylistic outlier if the user mentioned style intent:
 
 ```
-1. **<Component Name>** by @<creator>
-   → <one-line description>
-   → Deps: tailwind, framer-motion
-   → Preview: <url>
+Top community picks for "announcement":
 
-2. ...
+1. **Banner** by @nur/ui — 141 votes
+   → https://21st.dev/r/nurui/banner
+
+2. **Upgrade Banner** by @victorwelander — 71 votes
+   → animated banner with floating gear icons, hover effects, dismiss button
+   → https://21st.dev/r/victorwelander/upgrade-banner
+
+3. **Animated Shiny Text** by @magicui — 67 votes
+   → https://21st.dev/r/magicui/animated-shiny-text
 ```
-Ask: *"Which one? (1/2/3 or describe what you'd prefer)"*
 
-### Phase 4 — Generate / fetch source
+Ask: *"Which one? (1/2/3, or describe what you'd prefer)"*
 
-**MCP path** — call `21st_magic_component_builder`:
+### Phase 4 — Install via shadcn registry
+
+This is the killer step. **One command** installs the component, all peer deps, all primitives, and any tailwind config edits:
+
+```bash
+npx shadcn@latest add https://21st.dev/r/<creator>/<component>
 ```
-message: "<full user request>"
-searchQuery: "<2-4 words>"
-absolutePathToCurrentFile: "<target page absolute path>"
-absolutePathToProjectDirectory: "<project root absolute path>"
-standaloneRequestQuery: "<self-contained description of the component to build>"
-```
-This opens 21st.dev in the browser; the user makes the choice; the tool returns the component code.
 
-**Scrape path** — `WebFetch` the chosen component page and extract the code block.
+Run it from the project root. shadcn handles:
+- Writing the component file to `components/ui/<name>.tsx` (or wherever `components.json` says)
+- Installing npm peer deps (`framer-motion`, `lucide-react`, `@radix-ui/*`, etc.)
+- Installing any missing shadcn primitives the component depends on
+- Extending `tailwind.config` if the registry item declares it
+
+**No MCP. No scraping. No manual `npm install`.** This is the canonical 21st.dev install path.
+
+If `npx shadcn add` fails (no internet, registry 404, paid component, project not shadcn-compatible), fall through to the **MCP fallback** below.
 
 ### Phase 5 — Theme-align
 
-Before writing the file, read the project's design tokens and rewrite the component to match:
+Even after `shadcn add`, the component may use tokens or classes the project doesn't have. Before wiring in:
 
-1. Read `tailwind.config.{ts,js}` and the global CSS (`app/globals.css`, `src/index.css`, or `styles/globals.css`) — collect:
+1. Open the freshly-installed file
+2. Read `tailwind.config.{ts,js}` and the global CSS (`app/globals.css`, `src/index.css`, or `styles/globals.css`) — collect:
    - CSS variables: `--background`, `--foreground`, `--primary`, `--accent`, `--radius`, etc.
    - Tailwind theme extensions: custom colors, font families
-2. In the fetched component, replace hardcoded values with the project's tokens:
-   | Hardcoded in component | Replace with |
+3. In the installed component, fix mismatches:
+   | Issue | Action |
    |---|---|
-   | `bg-blue-500`, `bg-[#3b82f6]` | `bg-primary` (if project defines it) |
-   | `text-gray-900` | `text-foreground` |
-   | `font-['Inter']` or `font-sans` | project's font var |
-   | `rounded-lg` (when project uses tokens) | `rounded-[var(--radius)]` |
-3. If the project has **no design tokens** (no shadcn, plain Tailwind), leave the component as-is and note this in the DESIGN.md entry.
+   | Component references `--brand` / `--brand-foreground` and project doesn't have them | Drop those references — don't invent the vars; replace with `--primary` / `--primary-foreground` or remove the styling |
+   | Component uses a custom Tailwind class like `animate-appear` not in our config | Inline the keyframes via `<style>{...}</style>` rather than editing `tailwind.config` |
+   | Component uses `Button asChild` (Radix Slot) but project's button is `@base-ui/react`-based | Swap to anchor + `buttonVariants(...)` — `asChild` doesn't exist on base-ui buttons |
+   | Hardcoded `bg-blue-500`, `bg-[#3b82f6]` | Replace with `bg-primary` if defined |
+   | `text-gray-900`, `text-black` | `text-foreground` |
+   | `text-gray-500`, `text-gray-600` | `text-muted-foreground` |
+   | `font-['Inter']` or hardcoded font | project's font var (`font-sans` if mapped via `next/font`) |
 
-See [REFERENCE.md](REFERENCE.md) § Theme-align cheatsheet for the full mapping.
+See [REFERENCE.md](REFERENCE.md) § Theme-align cheatsheet for the full mapping. If the project has **no design tokens**, leave the component as-is and note it in DESIGN.md.
 
 ### Phase 6 — Wire-in
 
-1. **Write** the component to the project's convention:
-   - shadcn/Next.js project → `components/sections/<Name>.tsx`
-   - Plain React with `src/` → `src/components/<Name>.tsx`
-   - No existing `components/` → create at root
-   - Never overwrite an existing file without confirming.
-2. **Install peer deps** in one command:
-   ```bash
-   npm install <dep1> <dep2>
-   ```
-3. **Install missing shadcn primitives** if the component imports `@/components/ui/*` that don't exist:
-   ```bash
-   npx shadcn@latest add <button> <table> <textarea>
-   ```
-4. **Edit the target page** to import and render the component:
+1. **Move/rename** if needed — `shadcn add` writes to `components/ui/<name>.tsx`. Sections (hero, pricing, footer) are conventionally in `components/sections/`. Move and update imports if so.
+2. **Edit the target page** to import and render the component:
    ```tsx
-   import { HeroSection } from "@/components/sections/HeroSection"
+   import { Hero } from "@/components/sections/Hero"
    // ...
-   <HeroSection />
+   <Hero />
    ```
    Use `Edit` to insert the import and the JSX in the appropriate place (top of the page, inside the layout's main wrapper).
+3. **Replace boilerplate** — if `app/page.tsx` is still the default Next.js scaffold, replace it entirely so the new section is visible above the fold.
+
+### MCP fallback (when registry install isn't viable)
+
+Use Magic MCP only when:
+- The user's intent doesn't map to a category slug, OR
+- `npx shadcn add` fails (registry 404, project not shadcn-compatible), OR
+- The user explicitly wants a generated/customized component, not a community pick
+
+**Search**: `21st_magic_component_inspiration` — returns JSON of matching components by similarity.
+**Generate**: `21st_magic_component_builder` — opens 21st.dev's canvas in the browser, user picks, returns code.
+
+Then proceed to Phase 5 (theme-align) and Phase 6 (wire-in).
+
+**MCP missing?** Suggest install (`npx @21st-dev/cli@latest install claude --api-key <key>` from https://21st.dev/magic/console) and ask the user to restart Claude Code — but don't block the registry path on it.
 
 ### Phase 7 — Verify
 
